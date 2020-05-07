@@ -1,0 +1,4 @@
+{
+    "inactivityTimeoutInMinutes": "15",
+    "logToFile": true
+}

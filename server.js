@@ -3,7 +3,8 @@ var express = require("express");
 var app = express();
 var http = require("http").Server(app);
 var io = require("socket.io")(http);
-var afkTimeout = 15; // TODO move into a conf file. in minutes
+var fs = require('fs');
+var config = require("./config.json")
 
 // HTTP server
 app.use(express.static(__dirname + "/public"));
@@ -19,6 +20,12 @@ app.get("/chat", (req, res) => {
 http.listen(PORT, function () {
     console.log(`listening on *:${PORT}`);
 });
+
+if (config.logToFile) {
+    var logfile = fs.createWriteStream(__dirname + "/haus.log", {
+        flags: "a",
+    });
+}
 
 // Socket.io
 const nicknames = { blank: "", server: "Server" };
@@ -36,7 +43,7 @@ io.on("connection", (socket) => {
             delete nicknames[socket.id];
         }
         socket.disconnect();
-    }, 60000 * afkTimeout);
+    }, 60000 * config.inactivityTimeoutInMinutes);
 
     // Allow sending/receiving messages only after user sets their nickname
     // You can implement your own authentication here
@@ -70,7 +77,7 @@ io.on("connection", (socket) => {
                 socket,
                 "You're not allowed to send or receive messages as you haven't joined the server."
             );
-        } else {
+        } else if (data.message.length !== 0) {
             socket.AFK.refresh();
             broadcastMessage(data.message, nicknames[socket.id], "user");
         }
@@ -79,7 +86,10 @@ io.on("connection", (socket) => {
 
 // Global message emitter with logging
 const broadcastMessage = (msg, nickname = "Server", type = "service") => {
-    console.log(`(${type}) [${new Date()}] ${nickname}: ${msg}`);
+    const logEntry = `[${new Date().toISOString()}] ${type === "service" ? "(" + type + ") " : "" }${nickname}: ${msg}`
+    console.log(logEntry);
+    if (config.logToFile) logfile.write(logEntry + '\n');
+
     io.to("all").emit("new message", {
         message: `${nickname}: ${msg}`,
         type: type,

@@ -37,7 +37,6 @@
   },
   "dependencies": {
     "express": "^4.17.1",
-    "moment": "^2.25.1",
     "socket.io": "^2.3.0"
   }
 }

@@ -3,7 +3,9 @@ var express = require("express");
 var app = express();
 var http = require("http").Server(app);
 var io = require("socket.io")(http);
+var afkTimeout = 15; // TODO move into a conf file. in minutes
 
+// HTTP server
 app.use(express.static(__dirname + "/public"));
 
 app.get("/", (req, res) => {
@@ -14,50 +16,85 @@ app.get("/chat", (req, res) => {
     res.sendFile(__dirname + "/public/chat.html");
 });
 
+http.listen(PORT, function () {
+    console.log(`listening on *:${PORT}`);
+});
+
+// Socket.io
+const nicknames = { blank: "", server: "Server" };
+
 io.on("connection", (socket) => {
-    // default nick
-    // TODO: add initial nick field
-    socket.nickname = `HausUser${Math.round(Math.random() * 100000)}`;
+    // AFK detection
+    socket.AFK = setTimeout(() => {
+        socket.emit("shutdown", {
+            message: `You've been disconnected due to inactivity.`,
+        });
+        if (socket.id in nicknames) {
+            broadcastMessage(
+                `${nicknames[socket.id]} has quit (inactivity timeout)`
+            );
+            delete nicknames[socket.id];
+        }
+        socket.disconnect();
+    }, 60000 * afkTimeout);
 
-    console.log(`${socket.nickname} connected`);
-    io.sockets.emit("new message", {
-        message: `${socket.nickname} has joined the chatroom`,
-        nickname: "Server",
-        type: "service",
-        timestamp: new Date(),
-    });
-
-    // listen for nickname changes
-    socket.on("nick", (data) => {
-        socket.nickname = data.nickname;
-        // TODO: implement nickname collision detection
+    // Allow sending/receiving messages only after user sets their nickname
+    // You can implement your own authentication here
+    socket.on("join", (data) => {
+        const truncNickname = data.nickname.substring(0, 32);
+        if (socket.id in nicknames) {
+            privateServiceMessage(socket, "You're already logged in.");
+        } else if (Object.values(nicknames).includes(truncNickname)) {
+            socket.emit("shutdown", {
+                message: `Sorry, ${truncNickname} is taken. Please try a different username.`,
+            });
+        } else {
+            nicknames[socket.id] = truncNickname;
+            socket.join("all"); // There are no rooms, this is nothing but an ~illusion~
+            broadcastMessage(`${nicknames[socket.id]} has joined`);
+        }
     });
 
     socket.on("disconnect", () => {
-        console.log(`${socket.nickname} disconnected`);
-        io.sockets.emit("new message", {
-            message: `${socket.nickname} has quit (${socket.leavemsg})`,
-            nickname: "Server",
-            type: "service",
-            timestamp: new Date(),
-        });
+        if (socket.id in nicknames) {
+            broadcastMessage(
+                `${nicknames[socket.id]} has quit (connection lost)`
+            );
+            delete nicknames[socket.id];
+        }
     });
 
     socket.on("chat message", (data) => {
-        console.log(`${socket.nickname}: ${data.message}`);
-        io.sockets.emit("new message", {
-            message: `${data.message}`,
-            nickname: socket.nickname,
-            type: "user",
-            timestamp: new Date(),
-        });
+        if (!(socket.id in nicknames)) {
+            privateServiceMessage(
+                socket,
+                "You're not allowed to send or receive messages as you haven't joined the server."
+            );
+        } else {
+            socket.AFK.refresh();
+            broadcastMessage(data.message, nicknames[socket.id], "user");
+        }
     });
 });
 
-http.listen(PORT, function () {
-    console.log("listening on *:3000"); //TODO: add IP template
-});
+// Global message emitter with logging
+const broadcastMessage = (msg, nickname = "Server", type = "service") => {
+    console.log(`(${type}) [${new Date()}] ${nickname}: ${msg}`);
+    io.to("all").emit("new message", {
+        message: `${nickname}: ${msg}`,
+        type: type,
+    });
+};
 
+// Private service message emitter without logging
+const privateServiceMessage = (socket, msg) => {
+    socket.emit("new message", {
+        message: msg,
+        type: "service",
+    });
+};
+
+// SIGINT/SIGTERM handler (sends a message to all clients to disconnect cleanly)
 const gracefulShutdown = () => {
     io.sockets.emit("shutdown", {
         message: "Server shutting down.",

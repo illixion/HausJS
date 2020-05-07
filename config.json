@@ -1,4 +1,5 @@
 {
     "inactivityTimeoutInMinutes": "15",
-    "logToFile": true
+    "logToFile": true,
+    "serverPort": 3000,
 }

@@ -3,8 +3,8 @@ var express = require("express");
 var app = express();
 var http = require("http").Server(app);
 var io = require("socket.io")(http);
-var fs = require('fs');
-var config = require("./config.json")
+var fs = require("fs");
+var config = require("./config.json");
 
 // HTTP server
 app.use(express.static(__dirname + "/public"));
@@ -86,9 +86,11 @@ io.on("connection", (socket) => {
 
 // Global message emitter with logging
 const broadcastMessage = (msg, nickname = "Server", type = "service") => {
-    const logEntry = `[${new Date().toISOString()}] ${type === "service" ? "(" + type + ") " : "" }${nickname}: ${msg}`
+    const logEntry = `[${new Date().toISOString()}] ${
+        type === "service" ? "(" + type + ") " : ""
+    }${nickname}: ${msg}`;
     console.log(logEntry);
-    if (config.logToFile) logfile.write(logEntry + '\n');
+    if (config.logToFile) logfile.write(logEntry + "\n");
 
     io.to("all").emit("new message", {
         message: `${nickname}: ${msg}`,

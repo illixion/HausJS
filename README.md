@@ -1,6 +1,6 @@
 # HausJS
 
-HausJS is a relatively simple Node and TypeScript server-client communication app that's secure and built using modern JS development practices.
+HausJS is a relatively simple Node.js server-client communication app that's secure and built using modern JS development practices.
 
 This is a solution for an interview test task by Ubiquiti Latvia.
 

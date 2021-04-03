@@ -5,6 +5,7 @@ var app = express();
 var http = require("http").Server(app);
 var io = require("socket.io")(http);
 var fs = require("fs");
+const TelegramBot = require('node-telegram-bot-api');
 
 // HTTP server
 app.use(express.static(__dirname + "/public"));
@@ -27,8 +28,48 @@ if (config.logToFile) {
     });
 }
 
+// Telegram
+const bot = new TelegramBot(config.tgToken, {polling: true});
+
+bot.onText(/\/ban (.+)/, (msg, match) => {
+    // 'msg' is the received Message from Telegram
+    // 'match' is the result of executing the regexp above on the text content
+    // of the message
+    if (msg.chat.id !== 83440360) {
+        bot.sendMessage(msg.chat.id, "You're not authorized to use this bot.");
+        return
+    }
+  
+    const chatId = msg.chat.id;
+    const resp = match[1]; // the captured "whatever"
+    let sock = "";
+
+    for (const [key, value] of Object.entries(nicknames)) {
+        if (value["nick"] === resp) {
+            sock = key
+        }
+    }      
+
+    if (sock !== "") {
+        bannedIps.push(nicknames[sock]["ip"])
+        delete nicknames[sock];
+        io.to(sock).emit('shutdown', {'message': 'You have been banned from the server.'});
+        bot.sendMessage(chatId, `Banned ${resp} successfully`);
+    }
+});
+
+bot.on('text', (msg) => {
+    if (msg.chat.id !== 83440360) {
+        bot.sendMessage(msg.chat.id, "You're not authorized to use this bot.");
+        return
+    }
+    
+    broadcastMessage(msg.text, nicknames["manual"]["nick"], "user");
+});
+
 // Socket.io
-const nicknames = { blank: "", server: "Server" };
+const nicknames = { blank: {nick: "", ip: "0.0.0.0"}, server: {nick: "Server", ip: "0.0.0.0"}, manual: {nick: "Manual", ip: "0.0.0.0"} };
+const bannedIps = []
 
 io.on("connection", (socket) => {
     // AFK detection
@@ -38,7 +79,7 @@ io.on("connection", (socket) => {
         });
         if (socket.id in nicknames) {
             broadcastMessage(
-                `${nicknames[socket.id]} has quit (inactivity timeout)`
+                `${nicknames[socket.id]["nick"]} has quit (inactivity timeout)`
             );
             delete nicknames[socket.id];
         }
@@ -51,21 +92,38 @@ io.on("connection", (socket) => {
         const truncNickname = data.nickname.substring(0, 32);
         if (socket.id in nicknames) {
             privateServiceMessage(socket, "You're already logged in.");
-        } else if (Object.values(nicknames).includes(truncNickname)) {
-            socket.emit("shutdown", {
-                message: `Sorry, ${truncNickname} is taken. Please try a different username.`,
-            });
         } else {
-            nicknames[socket.id] = truncNickname;
+            for (const [key, value] of Object.entries(nicknames)) {
+                if (value["nick"] === truncNickname) {
+                    socket.emit("shutdown", {
+                        message: `Sorry, ${truncNickname} is taken. Please try a different username.`,
+                    });
+                    return
+                }
+            }
+            
+            if (bannedIps.includes(socket.handshake.address)) {
+                socket.emit("shutdown", {
+                    message: `You are banned from the server.`,
+                });
+                return
+            }
+
+            nicknames[socket.id] = {"nick": truncNickname, "ip": socket.handshake.address};
             socket.join("all"); // There are no rooms, this is nothing but an ~illusion~
-            broadcastMessage(`${nicknames[socket.id]} has joined`);
+            broadcastMessage(`${nicknames[socket.id]["nick"]} has joined`);
+            if (Object.keys(nicknames).length === 4) {
+                privateServiceMessage(socket, `Say hi! There is one other user here.`)
+            } else {
+                privateServiceMessage(socket, `Say hi! There are ${Object.keys(nicknames).length - 3} other users here.`)
+            }
         }
     });
 
     socket.on("disconnect", () => {
         if (socket.id in nicknames) {
             broadcastMessage(
-                `${nicknames[socket.id]} has quit (connection lost)`
+                `${nicknames[socket.id]["nick"]} has quit (connection lost)`
             );
             delete nicknames[socket.id];
         }
@@ -79,7 +137,7 @@ io.on("connection", (socket) => {
             );
         } else if (data.message.length !== 0) {
             socket.AFK.refresh();
-            broadcastMessage(data.message, nicknames[socket.id], "user");
+            broadcastMessage(data.message, nicknames[socket.id]["nick"], "user");
         }
     });
 });
@@ -96,6 +154,9 @@ const broadcastMessage = (msg, nickname = "Server", type = "service") => {
         message: `${nickname}: ${msg}`,
         type: type,
     });
+    if (nickname !== "Manual") {
+        bot.sendMessage(83440360, `${nickname}: ${msg}`);
+    }
 };
 
 // Private service message emitter without logging

@@ -115,3 +115,6 @@ dist
 .yarn/build-state.yml
 .pnp.*
 .DS_Store
+
+# config
+config.json

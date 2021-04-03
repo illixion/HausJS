@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Chat</title>
+    <link rel="stylesheet" type="text/css" href="css/index.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+</head>
+
+<body>
+    <div class="wrapper fadeInDown">
+        <div id="formContent">
+            <div class="fadeIn first">
+                <img src="img/nexus.svg" id="icon" alt="Nexus Icon" />
+                <p>Nexus Chat</p>
+            </div>
+
+            <form action="chat.html" method="GET">
+                <input type="text" id="nickname" class="fadeIn second" placeholder="Nickname" name="nickname"
+                    maxlength="32" required>
+                <input type="submit" class="fadeIn third" value="Connect">
+            </form>
+
+            <div id="formFooter">
+                <p>Hi! You've reached a server that belongs to some cat on the internet.
+                Here you can send me a message or leave a concern about traffic from this IP address.</p>
+                <p>This is a real-time chatroom and I'll be able to respond immediately.</p>
+                <small>○( ＾皿＾)っ</small>
+            </div>
+        </div>
+
+        <div id="swal2-container"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@9"></script>
+        <script src="js/index.js"></script>
+</body>
+
+</html>

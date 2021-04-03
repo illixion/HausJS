@@ -1,5 +1,6 @@
 {
     "inactivityTimeoutInMinutes": "15",
     "logToFile": true,
-    "serverPort": 3000
+    "serverPort": 3000,
+    "tgToken": ""
 }
